@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IICPC Platform | Live Leaderboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px;}
+        .container { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 40px; width: 700px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        h1 { margin-top: 0; color: #58a6ff; text-align: center; font-size: 28px; text-transform: uppercase; letter-spacing: 2px;}
+        .metric-box { display: flex; justify-content: space-between; background-color: #0d1117; padding: 15px 20px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #238636; }
+        .metric-title { font-weight: bold; font-size: 16px; color: #8b949e; }
+        .metric-value { font-family: monospace; font-size: 20px; color: #3fb950; font-weight: bold; }
+        .status { text-align: center; margin-top: 20px; font-size: 14px; color: #8b949e; }
+        .chart-container { margin-top: 30px; border-top: 1px solid #30363d; padding-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Engine Telemetry</h1>
+        
+        <div class="metric-box" style="border-left-color: #3fb950;">
+            <span class="metric-title">p50 Latency (Median)</span>
+            <span class="metric-value" id="p50">0 ns</span>
+        </div>
+        <div class="metric-box" style="border-left-color: #d29922;">
+            <span class="metric-title">p90 Latency</span>
+            <span class="metric-value" id="p90" style="color: #d29922;">0 ns</span>
+        </div>
+        <div class="metric-box" style="border-left-color: #f85149;">
+            <span class="metric-title">p99 Latency (Tail)</span>
+            <span class="metric-value" id="p99" style="color: #f85149;">0 ns</span>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="latencyChart"></canvas>
+        </div>
+
+        <div class="status" id="status-text">Status: Awaiting Data...</div>
+    </div>
+
+    <script>
+        // --- Initialize the Live Chart ---
+        const ctx = document.getElementById('latencyChart').getContext('2d');
+        const latencyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // Time ticks
+                datasets: [
+                    { label: 'p50 (ns)', borderColor: '#3fb950', backgroundColor: 'transparent', data: [], tension: 0.3, borderWidth: 2 },
+                    { label: 'p90 (ns)', borderColor: '#d29922', backgroundColor: 'transparent', data: [], tension: 0.3, borderWidth: 2 },
+                    { label: 'p99 (ns)', borderColor: '#f85149', backgroundColor: 'transparent', data: [], tension: 0.3, borderWidth: 2 }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: { duration: 400 },
+                color: '#8b949e',
+                scales: {
+                    x: { display: false }, // Hide X axis for a cleaner look
+                    y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }
+                },
+                plugins: { legend: { labels: { color: '#c9d1d9' } } }
+            }
+        });
+
+        let tick = 0;
+
+        // --- Fetch Data and Update UI ---
+        setInterval(async () => {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/leaderboard-data/');
+                const data = await response.json();
+                
+                // Update text metrics
+                document.getElementById('p50').innerText = data.p50 + " ns";
+                document.getElementById('p90').innerText = data.p90 + " ns";
+                document.getElementById('p99').innerText = data.p99 + " ns";
+                document.getElementById('status-text').innerText = "Status: " + data.status;
+
+                // Update the chart if we have live data
+                if (data.p50 > 0) {
+                    latencyChart.data.labels.push(tick++);
+                    latencyChart.data.datasets[0].data.push(data.p50);
+                    latencyChart.data.datasets[1].data.push(data.p90);
+                    latencyChart.data.datasets[2].data.push(data.p99);
+
+                    // Keep the chart from getting infinitely wide (show last 15 ticks)
+                    if (latencyChart.data.labels.length > 15) {
+                        latencyChart.data.labels.shift();
+                        latencyChart.data.datasets.forEach(dataset => dataset.data.shift());
+                    }
+                    latencyChart.update();
+                }
+            } catch (err) {
+                document.getElementById('status-text').innerText = "Status: API Offline";
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

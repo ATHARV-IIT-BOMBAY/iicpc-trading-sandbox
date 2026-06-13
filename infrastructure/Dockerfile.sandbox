@@ -1,0 +1,17 @@
+# Use a lightweight Linux base image
+FROM ubuntu:22.04
+
+# Install the C++ compiler tools
+RUN apt-get update && apt-get install -y g++ 
+
+# Set the working directory inside the isolated container
+WORKDIR /app
+
+# Copy the uploaded contestant code into the container
+COPY ./sandbox-api/contestant_submissions/engine.cpp .
+
+# Compile the engine with maximum optimization
+RUN g++ -O3 engine.cpp -o trading_engine
+
+# Run the compiled engine when the container boots
+CMD ["./trading_engine"]
